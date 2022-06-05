@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <fstream> 
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -220,118 +221,153 @@ void windowSetup(std::vector<std::string> WINDOW_NAMES,
 
 int main(int argc, char *argv[])
 {
-    /* INPUT IMAGE CONSTRUCTION */
-    cv::Mat input_image;
-    input_image = cv::imread("./Soil types - selected/Black soil/3.jpg");
-    int input_image_width = input_image.size().width;
-    int input_image_height = input_image.size().height;
+    std::vector<std::string> input_images_filenames_compilation {
+        std::string("./blackSoil.txt"),
+        std::string("./cinderSoil.txt"),
+        std::string("./lateriteSoil.txt"),
+        std::string("./peatSoil.txt"),
+        std::string("./yellowSoil.txt")
+    };
 
-    /* GAUSSIAN BLUR CONSTRUCTION */
-    cv::Mat gaussian_control_image;
-    int GAUSSIAN_FILTER = 1;
-    std::vector<int*> GAUSSIAN_PARAMETERS {&GAUSSIAN_FILTER};
-
-    /* CSV IMAGE CONSTRUCTION */
-    cv::Mat hsv_image;
-    cv::cvtColor(input_image, hsv_image, cv::COLOR_BGR2HSV);
-
-    /* THRESHOLD IMAGE CONSTRUCTION */
-    cv::Mat hsv_control_image;
-    int HSV_H_LOW = 0, HSV_S_LOW = 0, HSV_V_LOW = 0;
-    int HSV_H_HIGH = 0, HSV_S_HIGH = 0, HSV_V_HIGH = 0;
-    std::vector<int*> HSV_PARAMETERS {&HSV_H_LOW, &HSV_S_LOW, &HSV_V_LOW,
-                                      &HSV_H_HIGH, &HSV_S_HIGH, &HSV_V_HIGH};
-
-    /* ERODED IMAGE CONSTRUCTION */
-    cv::Mat erode_control_image;
-    int ERODE_SIZE = 1;
-    std::vector<int*> ERODE_PARAMETERS {&ERODE_SIZE};
-
-    /* DILATED IMAGE CONSTRUCTION */
-    cv::Mat dilate_control_image;
-    int DILATE_SIZE = 1;
-    std::vector<int*> DILATE_PARAMETERS {&DILATE_SIZE};
-
-    /* CONTOURS IMAGE CONSTRUCTION */
-    cv::Mat contours_image;
-    int MIN_AREA_THRESHOLD = 1;
-    int MAX_AREA_THRESHOLD = 1;
-    std::vector<int*> CONTOURS_PARAMETERS {&MIN_AREA_THRESHOLD, &MAX_AREA_THRESHOLD};
-
-    int last_num_contours = 0;
-
-    /* IMAGE VISUALIZATION */
-    int xyOffset = 0;
-    std::vector<std::string> WINDOW_NAMES {"input_image",
-                                           "gaussian_control_image", 
-                                           "hsv_image",
-                                           "hsv_control_image",
-                                           "erode_control_image",
-                                           "dilate_control_image",
-                                           "contours_image",
-                                           "bgr_hist_image",
-                                           "hsv_hist_image"};
-    std::vector<int> WINDOW_DISTANCES {xyOffset, 
-                                       input_image_width,
-                                       input_image_height*2};
-    windowSetup(WINDOW_NAMES,
-                WINDOW_DISTANCES);
-    trackbarSetup(GAUSSIAN_PARAMETERS,
-                  HSV_PARAMETERS,
-                  ERODE_PARAMETERS,
-                  DILATE_PARAMETERS,
-                  CONTOURS_PARAMETERS);
-    cv::imshow("input_image", input_image);
-    cv::imshow("hsv_image", hsv_image);
-
-    /* BGR AND HSV HISTOGRAMS CONSTRUCTION */
-    BGRAndHSVHistograms(input_image);
-
-    while(true)
+    for(int i = 0; i < input_images_filenames_compilation.size(); i++)
     {
-        /* GAUSSIAN BLUR IMAGE UPDATE */
-        int ODD_GAUSSIAN_FILTER = GAUSSIAN_FILTER*2 + 1;
-        cv::GaussianBlur(input_image, 
-                         gaussian_control_image,
-                         cv::Size(ODD_GAUSSIAN_FILTER, ODD_GAUSSIAN_FILTER), 0, 0);
-        cv::imshow("gaussian_control_image", gaussian_control_image);
+        /* GETTING IMAGES FILENAMES */
+        std::ifstream filenames_compilation;
 
-        /* THRESHOLD IMAGE UPDATE */
-        cv::inRange(gaussian_control_image,
-                    cv::Scalar(HSV_H_LOW, HSV_S_LOW, HSV_V_LOW),
-                    cv::Scalar(HSV_H_HIGH, HSV_S_HIGH, HSV_V_HIGH),
-                    hsv_control_image);
-        cv::imshow("hsv_control_image", hsv_control_image);
-
-        /* ERODE IMAGE UPDATE */
-        cv::erode(hsv_control_image,
-                  erode_control_image,
-                  cv::getStructuringElement(cv::MORPH_ELLIPSE, 
-                                            cv::Size(ERODE_SIZE, ERODE_SIZE)));
-        cv::imshow("erode_control_image", erode_control_image);
-        
-        /* DILATE IMAGE UPDATE */
-        cv::dilate(erode_control_image,
-                   dilate_control_image,
-                   cv::getStructuringElement(cv::MORPH_ELLIPSE, 
-                                             cv::Size(DILATE_SIZE, DILATE_SIZE)));
-        cv::imshow("dilate_control_image", dilate_control_image);
-
-
-        /* TRACKING IMAGE UPDATE */
-        input_image.copyTo(contours_image);
-        std::vector<int> tracking_info = tracking(contours_image, dilate_control_image, MIN_AREA_THRESHOLD, MAX_AREA_THRESHOLD);
-        if(tracking_info[0] != last_num_contours)
+        //Getting number of image files
+        filenames_compilation.open(input_images_filenames_compilation[i]);
+        int number_lines = 0;
+        while(!filenames_compilation.eof())
         {
-            std::cout << "Quantidade de contornos = " << tracking_info[0] << std::endl;
+            std::string temp;
+            std::getline(filenames_compilation, temp);
+            number_lines++;
         }
-        last_num_contours = tracking_info[0];
-        cv::imshow("contours_image", contours_image);
+        filenames_compilation.close();
 
-        if(cv::waitKey(20) == 'q')
-            break;
+        filenames_compilation.open(input_images_filenames_compilation[i]);
+        for(int j = 0; j < number_lines; j++)
+        {
+            std::string file_path;
+            if(filenames_compilation.is_open())
+            {
+                std::getline(filenames_compilation, file_path);
+            }
+            std::cout << file_path << std::endl;
+
+            /* INPUT IMAGE CONSTRUCTION */
+            cv::Mat input_image;
+            input_image = cv::imread(file_path);
+            int input_image_width = input_image.size().width;
+            int input_image_height = input_image.size().height;
+
+            /* GAUSSIAN BLUR CONSTRUCTION */
+            cv::Mat gaussian_control_image;
+            int GAUSSIAN_FILTER = 1;
+            std::vector<int*> GAUSSIAN_PARAMETERS {&GAUSSIAN_FILTER};
+
+            /* CSV IMAGE CONSTRUCTION */
+            cv::Mat hsv_image;
+            cv::cvtColor(input_image, hsv_image, cv::COLOR_BGR2HSV);
+
+            /* THRESHOLD IMAGE CONSTRUCTION */
+            cv::Mat hsv_control_image;
+            int HSV_H_LOW = 0, HSV_S_LOW = 0, HSV_V_LOW = 0;
+            int HSV_H_HIGH = 0, HSV_S_HIGH = 0, HSV_V_HIGH = 0;
+            std::vector<int*> HSV_PARAMETERS {&HSV_H_LOW, &HSV_S_LOW, &HSV_V_LOW,
+                                            &HSV_H_HIGH, &HSV_S_HIGH, &HSV_V_HIGH};
+
+            /* ERODED IMAGE CONSTRUCTION */
+            cv::Mat erode_control_image;
+            int ERODE_SIZE = 1;
+            std::vector<int*> ERODE_PARAMETERS {&ERODE_SIZE};
+
+            /* DILATED IMAGE CONSTRUCTION */
+            cv::Mat dilate_control_image;
+            int DILATE_SIZE = 1;
+            std::vector<int*> DILATE_PARAMETERS {&DILATE_SIZE};
+
+            /* CONTOURS IMAGE CONSTRUCTION */
+            cv::Mat contours_image;
+            int MIN_AREA_THRESHOLD = 1;
+            int MAX_AREA_THRESHOLD = 1;
+            std::vector<int*> CONTOURS_PARAMETERS {&MIN_AREA_THRESHOLD, &MAX_AREA_THRESHOLD};
+
+            int last_num_contours = 0;
+
+            /* IMAGE VISUALIZATION */
+            int xyOffset = 0;
+            std::vector<std::string> WINDOW_NAMES {"input_image",
+                                                "gaussian_control_image", 
+                                                "hsv_image",
+                                                "hsv_control_image",
+                                                "erode_control_image",
+                                                "dilate_control_image",
+                                                "contours_image",
+                                                "bgr_hist_image",
+                                                "hsv_hist_image"};
+            std::vector<int> WINDOW_DISTANCES {xyOffset, 
+                                            input_image_width,
+                                            input_image_height*2};
+            windowSetup(WINDOW_NAMES,
+                        WINDOW_DISTANCES);
+            trackbarSetup(GAUSSIAN_PARAMETERS,
+                        HSV_PARAMETERS,
+                        ERODE_PARAMETERS,
+                        DILATE_PARAMETERS,
+                        CONTOURS_PARAMETERS);
+            cv::imshow("input_image", input_image);
+            cv::imshow("hsv_image", hsv_image);
+
+            /* BGR AND HSV HISTOGRAMS CONSTRUCTION */
+            BGRAndHSVHistograms(input_image);
+
+            while(true)
+            {
+                /* GAUSSIAN BLUR IMAGE UPDATE */
+                int ODD_GAUSSIAN_FILTER = GAUSSIAN_FILTER*2 + 1;
+                cv::GaussianBlur(input_image, 
+                                gaussian_control_image,
+                                cv::Size(ODD_GAUSSIAN_FILTER, ODD_GAUSSIAN_FILTER), 0, 0);
+                cv::imshow("gaussian_control_image", gaussian_control_image);
+
+                /* THRESHOLD IMAGE UPDATE */
+                cv::inRange(gaussian_control_image,
+                            cv::Scalar(HSV_H_LOW, HSV_S_LOW, HSV_V_LOW),
+                            cv::Scalar(HSV_H_HIGH, HSV_S_HIGH, HSV_V_HIGH),
+                            hsv_control_image);
+                cv::imshow("hsv_control_image", hsv_control_image);
+
+                /* ERODE IMAGE UPDATE */
+                cv::erode(hsv_control_image,
+                        erode_control_image,
+                        cv::getStructuringElement(cv::MORPH_ELLIPSE, 
+                                                    cv::Size(ERODE_SIZE, ERODE_SIZE)));
+                cv::imshow("erode_control_image", erode_control_image);
+                
+                /* DILATE IMAGE UPDATE */
+                cv::dilate(erode_control_image,
+                        dilate_control_image,
+                        cv::getStructuringElement(cv::MORPH_ELLIPSE, 
+                                                    cv::Size(DILATE_SIZE, DILATE_SIZE)));
+                cv::imshow("dilate_control_image", dilate_control_image);
+
+
+                /* TRACKING IMAGE UPDATE */
+                input_image.copyTo(contours_image);
+                std::vector<int> tracking_info = tracking(contours_image, dilate_control_image, MIN_AREA_THRESHOLD, MAX_AREA_THRESHOLD);
+                if(tracking_info[0] != last_num_contours)
+                {
+                    std::cout << "Quantidade de contornos = " << tracking_info[0] << std::endl;
+                }
+                last_num_contours = tracking_info[0];
+                cv::imshow("contours_image", contours_image);
+
+                if(cv::waitKey(20) == 'q')
+                    break;
+            }
+
+            cv::destroyAllWindows();
+        }
     }
-    
-    //cv::waitKey(0);
-    cv::destroyAllWindows();
 }
