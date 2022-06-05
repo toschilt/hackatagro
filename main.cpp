@@ -75,7 +75,7 @@ std::vector<cv::Mat> ColorHistogram(cv::Mat input_image, int type, std::string w
 /*
     Do BGR and HSV historgrams.
 */
-void BGRAndHSVHistograms(cv::Mat input_image)
+std::vector<float> BGRAndHSVHistograms(cv::Mat input_image)
 {
     /* BGR HISTOGRAM CONSTRUCTION */
     std::vector<cv::Mat> bgr_histograms;
@@ -118,6 +118,12 @@ void BGRAndHSVHistograms(cv::Mat input_image)
         hsv_hist_average.push_back(sum);
         std::cout << sum << std::endl;
     }
+
+    std::vector<float> histograms;
+    histograms.insert(histograms.end(), bgr_hist_average.begin(), bgr_hist_average.end());
+    histograms.insert(histograms.end(), hsv_hist_average.begin(), hsv_hist_average.end());
+    
+    return histograms;
 }
 
 /*
@@ -222,11 +228,7 @@ void windowSetup(std::vector<std::string> WINDOW_NAMES,
 int main(int argc, char *argv[])
 {
     std::vector<std::string> input_images_filenames_compilation {
-        std::string("./blackSoil.txt"),
-        std::string("./cinderSoil.txt"),
-        std::string("./lateriteSoil.txt"),
-        std::string("./peatSoil.txt"),
-        std::string("./yellowSoil.txt")
+        std::string("./lateriteSoil.txt")
     };
 
     for(int i = 0; i < input_images_filenames_compilation.size(); i++)
@@ -245,7 +247,23 @@ int main(int argc, char *argv[])
         }
         filenames_compilation.close();
 
+        //Opening a file to write parameters
+        std::size_t pos = input_images_filenames_compilation[i].find("Soil");
+        std::ofstream parameters_file(input_images_filenames_compilation[i].substr(0, pos+4) + ".csv");
+        parameters_file << input_images_filenames_compilation[i] << std::endl;
+        parameters_file << "GAUSSIAN_FILTER, HSV_H_LOW, HSV_S_LOW, HSV_V_LOW, HSV_H_HIGH, HSV_S_HIGH, HSV_V_HIGH, ERODE_SIZE, DILATE_SIZE, MIN_AREA_THRESHOLD, MAX_AREA_THRESHOLD";
+        parameters_file << ", BLUE_AVERAGE, GREEN_AVERAGE, RED_AVERAGE, H_AVERAGE, S_AVERAGE, V_AVERAGE" << std::endl;
+
         filenames_compilation.open(input_images_filenames_compilation[i]);
+
+        int GAUSSIAN_FILTER = 1;
+        int HSV_H_LOW = 0, HSV_S_LOW = 0, HSV_V_LOW = 0;
+        int HSV_H_HIGH = 0, HSV_S_HIGH = 0, HSV_V_HIGH = 0;
+        int ERODE_SIZE = 1;
+        int DILATE_SIZE = 1;
+        int MIN_AREA_THRESHOLD = 1;
+        int MAX_AREA_THRESHOLD = 1;
+
         for(int j = 0; j < number_lines; j++)
         {
             std::string file_path;
@@ -253,7 +271,7 @@ int main(int argc, char *argv[])
             {
                 std::getline(filenames_compilation, file_path);
             }
-            std::cout << file_path << std::endl;
+            //std::cout << file_path << std::endl;
 
             /* INPUT IMAGE CONSTRUCTION */
             cv::Mat input_image;
@@ -263,7 +281,6 @@ int main(int argc, char *argv[])
 
             /* GAUSSIAN BLUR CONSTRUCTION */
             cv::Mat gaussian_control_image;
-            int GAUSSIAN_FILTER = 1;
             std::vector<int*> GAUSSIAN_PARAMETERS {&GAUSSIAN_FILTER};
 
             /* CSV IMAGE CONSTRUCTION */
@@ -272,25 +289,19 @@ int main(int argc, char *argv[])
 
             /* THRESHOLD IMAGE CONSTRUCTION */
             cv::Mat hsv_control_image;
-            int HSV_H_LOW = 0, HSV_S_LOW = 0, HSV_V_LOW = 0;
-            int HSV_H_HIGH = 0, HSV_S_HIGH = 0, HSV_V_HIGH = 0;
             std::vector<int*> HSV_PARAMETERS {&HSV_H_LOW, &HSV_S_LOW, &HSV_V_LOW,
-                                            &HSV_H_HIGH, &HSV_S_HIGH, &HSV_V_HIGH};
+                                              &HSV_H_HIGH, &HSV_S_HIGH, &HSV_V_HIGH};
 
             /* ERODED IMAGE CONSTRUCTION */
             cv::Mat erode_control_image;
-            int ERODE_SIZE = 1;
             std::vector<int*> ERODE_PARAMETERS {&ERODE_SIZE};
 
             /* DILATED IMAGE CONSTRUCTION */
             cv::Mat dilate_control_image;
-            int DILATE_SIZE = 1;
             std::vector<int*> DILATE_PARAMETERS {&DILATE_SIZE};
 
             /* CONTOURS IMAGE CONSTRUCTION */
             cv::Mat contours_image;
-            int MIN_AREA_THRESHOLD = 1;
-            int MAX_AREA_THRESHOLD = 1;
             std::vector<int*> CONTOURS_PARAMETERS {&MIN_AREA_THRESHOLD, &MAX_AREA_THRESHOLD};
 
             int last_num_contours = 0;
@@ -312,16 +323,29 @@ int main(int argc, char *argv[])
             windowSetup(WINDOW_NAMES,
                         WINDOW_DISTANCES);
             trackbarSetup(GAUSSIAN_PARAMETERS,
-                        HSV_PARAMETERS,
-                        ERODE_PARAMETERS,
-                        DILATE_PARAMETERS,
-                        CONTOURS_PARAMETERS);
+                          HSV_PARAMETERS,
+                          ERODE_PARAMETERS,
+                          DILATE_PARAMETERS,
+                          CONTOURS_PARAMETERS);
             cv::imshow("input_image", input_image);
+
+            std::vector<cv::Mat> hsv_vec;
+            cv::split(hsv_image, hsv_vec);
+            cv::Mat &H = hsv_vec[0];
+            cv::Mat &S = hsv_vec[1];
+            cv::Mat &V = hsv_vec[2];
+            cv::merge(hsv_vec, hsv_image);
+            
+            cv::inRange(hsv_image,
+                        cv::Scalar(0, 0, 0),
+                        cv::Scalar(255, 150, 255),
+                        hsv_image);
             cv::imshow("hsv_image", hsv_image);
 
             /* BGR AND HSV HISTOGRAMS CONSTRUCTION */
-            BGRAndHSVHistograms(input_image);
+            std::vector<float> histograms_average = BGRAndHSVHistograms(input_image);
 
+            int num_contours = 0;
             while(true)
             {
                 /* GAUSSIAN BLUR IMAGE UPDATE */
@@ -361,6 +385,7 @@ int main(int argc, char *argv[])
                     std::cout << "Quantidade de contornos = " << tracking_info[0] << std::endl;
                 }
                 last_num_contours = tracking_info[0];
+                num_contours = tracking_info[0];
                 cv::imshow("contours_image", contours_image);
 
                 if(cv::waitKey(20) == 'q')
@@ -368,6 +393,45 @@ int main(int argc, char *argv[])
             }
 
             cv::destroyAllWindows();
+
+            std::size_t pos = file_path.find(".jpg");
+            //std::cout<< file_path << std::endl;
+
+            std::string input_image_id = file_path.substr(pos-2, 2);
+            //std::cout<< input_image_id << std::endl;
+
+            pos = input_images_filenames_compilation[i].find("Soil");
+            std::string output_images_folder("./image_output/" + input_images_filenames_compilation[i].substr(2, pos+2) + "/");
+
+            cv::imwrite(output_images_folder + input_image_id + "_gaussian_control_image" + ".png", gaussian_control_image);
+            cv::imwrite(output_images_folder + input_image_id + "_hsv_control_image" + ".png", hsv_control_image);
+            cv::imwrite(output_images_folder + input_image_id + "_erode_control_image" + ".png", erode_control_image);
+            cv::imwrite(output_images_folder + input_image_id + "_dilate_control_image" + ".png", dilate_control_image);
+            cv::imwrite(output_images_folder + input_image_id + "_contours_image" + ".png", contours_image);
+            cv::imwrite(output_images_folder + input_image_id + "_hsv_image" + ".png", hsv_image);
+
+            parameters_file << GAUSSIAN_FILTER << ", ";
+            parameters_file << HSV_H_LOW << ", ";
+            parameters_file << HSV_S_LOW << ", ";
+            parameters_file << HSV_V_LOW << ", ";
+            parameters_file << HSV_H_HIGH << ", ";
+            parameters_file << HSV_S_HIGH << ", ";
+            parameters_file << HSV_V_HIGH << ", ";
+            parameters_file << HSV_V_HIGH << ", ";
+            parameters_file << ERODE_SIZE << ", ";
+            parameters_file << DILATE_SIZE << ", ";
+            parameters_file << MIN_AREA_THRESHOLD << ", ";
+            parameters_file << MAX_AREA_THRESHOLD << ", ";
+            parameters_file << num_contours << ", ";
+            parameters_file << histograms_average[0] << ", ";
+            parameters_file << histograms_average[1] << ", ";
+            parameters_file << histograms_average[2] << ", ";
+            parameters_file << histograms_average[3] << ", ";
+            parameters_file << histograms_average[4] << ", ";
+            parameters_file << histograms_average[5];
+            parameters_file << std::endl;
         }
+
+        parameters_file.close();
     }
 }
